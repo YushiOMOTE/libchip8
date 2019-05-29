@@ -1,34 +1,39 @@
+use log::*;
+use minifb::{Key, Scale, Window, WindowOptions};
 use rand::{rngs::ThreadRng, Rng};
-use rustty::{
-    ui::{Alignable, HorizontalAlign, VerticalAlign, Widget},
-    CellAccessor, Event, Terminal,
-};
+use structopt::StructOpt;
 
-const BLOCK: char = '\u{2588}';
+#[derive(StructOpt)]
+struct Opt {
+    /// Log file
+    #[structopt(short = "l", long = "log")]
+    log: Option<String>,
+    /// Log level
+    #[structopt(short = "d", long = "loglevel", default_value = "info")]
+    loglevel: String,
+    /// Clock speed in Hz
+    #[structopt(short = "c", long = "clock", default_value = "1000")]
+    hz: u64,
+}
 
 struct Hardware {
-    term: Terminal,
-    canvas: Widget,
+    win: Option<Window>,
     rng: ThreadRng,
     inst: std::time::Instant,
     vramsz: (u8, u8),
     vram: Vec<bool>,
+    opt: Opt,
 }
 
 impl Hardware {
-    fn new() -> Self {
-        let term = Terminal::new().unwrap();
-        let mut canvas = Widget::new(256, 256);
-
-        canvas.align(&term, HorizontalAlign::Left, VerticalAlign::Top, 0);
-
+    fn new(opt: Opt) -> Self {
         Self {
-            term,
-            canvas,
+            win: None,
             rng: rand::thread_rng(),
             inst: std::time::Instant::now(),
             vramsz: (0, 0),
             vram: vec![],
+            opt,
         }
     }
 }
@@ -39,47 +44,62 @@ impl libchip8::Hardware for Hardware {
     }
 
     fn key(&mut self, key: u8) -> bool {
-        match self.term.get_event(std::time::Duration::from_secs(0)) {
-            Ok(Some(Event::Key(ch))) => {
-                if ch == key as char {
-                    return true;
-                }
-            }
-            _ => {}
-        }
+        let k = match key {
+            0 => Key::X,
+            1 => Key::Key1,
+            2 => Key::Key2,
+            3 => Key::Key3,
+            4 => Key::Q,
+            5 => Key::W,
+            6 => Key::E,
+            7 => Key::A,
+            8 => Key::S,
+            9 => Key::D,
+            0xa => Key::Z,
+            0xb => Key::C,
+            0xc => Key::Key4,
+            0xd => Key::E,
+            0xe => Key::D,
+            0xf => Key::C,
+            _ => return false,
+        };
 
-        false
+        match &self.win {
+            Some(win) => win.is_key_down(k),
+            None => false,
+        }
     }
 
     fn vram_set(&mut self, x: u8, y: u8, d: bool) {
-        let cell = self.canvas.get_mut(x as usize, y as usize).unwrap();
-
-        if d {
-            cell.set_ch(BLOCK);
-        } else {
-            cell.set_ch(' ');
-        }
-
-        // let x = x as usize;
-        // let y = y as usize;
-        // let w = self.vramsz.0 as usize;
-        // self.vram[w * y + x] = d;
+        self.vram[(y as usize * self.vramsz.0 as usize) + x as usize] = d;
     }
 
     fn vram_get(&mut self, x: u8, y: u8) -> bool {
-        let cell = self.canvas.get(x as usize, y as usize).unwrap();
-        cell.ch() != ' '
-
-        // let x = x as usize;
-        // let y = y as usize;
-        // let w = self.vramsz.0 as usize;
-        // self.vram[w * y + x]
+        self.vram[(y as usize * self.vramsz.0 as usize) + x as usize]
     }
 
     fn vram_setsize(&mut self, size: (u8, u8)) {
         let (w, h) = (size.0 as usize, size.1 as usize);
         self.vramsz = size;
         self.vram = vec![false; w * h];
+
+        let win = match Window::new(
+            "Chip8",
+            64,
+            32,
+            WindowOptions {
+                resize: true,
+                scale: Scale::X4,
+                ..WindowOptions::default()
+            },
+        ) {
+            Ok(win) => win,
+            Err(err) => {
+                panic!("Unable to create window {}", err);
+            }
+        };
+
+        self.win = Some(win);
     }
 
     fn vram_size(&mut self) -> (u8, u8) {
@@ -89,26 +109,58 @@ impl libchip8::Hardware for Hardware {
     fn clock(&mut self) -> u64 {
         let d = self.inst.elapsed();
         d.as_secs()
-            .wrapping_mul(1000000000)
+            .wrapping_mul(1000_000_000)
             .wrapping_add(d.subsec_nanos().into())
     }
 
     fn beep(&mut self) {}
 
     fn sched(&mut self) -> bool {
-        if self.key(b'q') {
-            true
-        } else {
-            self.canvas.draw_into(&mut self.term);
-            self.term.swap_buffers().unwrap();
-            false
+        std::thread::sleep(std::time::Duration::from_micros(1000_000 / self.opt.hz));
+
+        if let Some(win) = &mut self.win {
+            if !win.is_open() || win.is_key_down(Key::Escape) {
+                return true;
+            }
+
+            let vram: Vec<u32> = self
+                .vram
+                .clone()
+                .into_iter()
+                .map(|b| if b { 0xffffff } else { 0 })
+                .collect();
+            win.update_with_buffer(&vram).unwrap();
         }
+
+        false
     }
 }
 
 fn main() {
-    env_logger::init();
+    let opt = Opt::from_args();
 
-    let chip8 = libchip8::Chip8::new(Hardware::new());
-    chip8.run(include_bytes!("maze.ch8"))
+    if let Some(log) = &opt.log {
+        use log4rs::append::file::FileAppender;
+        use log4rs::config::{Appender, Config, Root};
+        use log4rs::encode::pattern::PatternEncoder;
+
+        let logfile = FileAppender::builder()
+            .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
+            .build(log)
+            .unwrap();
+
+        let config = Config::builder()
+            .appender(Appender::builder().build("logfile", Box::new(logfile)))
+            .build(
+                Root::builder()
+                    .appender("logfile")
+                    .build(opt.loglevel.parse().expect("Invalid log level")),
+            )
+            .unwrap();
+
+        log4rs::init_config(config).unwrap();
+    }
+
+    let chip8 = libchip8::Chip8::new(Hardware::new(opt));
+    chip8.run(include_bytes!("tetris.ch8"))
 }

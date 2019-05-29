@@ -1,6 +1,6 @@
 #![no_std]
 
-use log::trace;
+use log::*;
 
 pub trait Hardware: Sized {
     fn rand(&mut self) -> u8;
@@ -27,7 +27,6 @@ pub trait Hardware: Sized {
 pub struct Chip8<T> {
     v: [u8; REGS],
     i: u16,
-    vf: bool,
     dt: u8,
     st: u8,
     pc: u16,
@@ -70,7 +69,6 @@ impl<T: Hardware> Chip8<T> {
         Self {
             v: [0; REGS],
             i: 0,
-            vf: false,
             dt: 0,
             st: 0,
             pc: 0,
@@ -110,13 +108,13 @@ impl<T: Hardware> Chip8<T> {
     }
 
     fn push(&mut self, item: u16) {
-        self.sp = self.sp.wrapping_add(1);
         self.stack[self.sp as usize] = item;
+        self.sp = self.sp.wrapping_add(1);
     }
 
     fn pop(&mut self) -> u16 {
-        let item = self.stack[self.sp as usize];
         self.sp = self.sp.wrapping_sub(1);
+        let item = self.stack[self.sp as usize];
         item
     }
 
@@ -258,28 +256,28 @@ impl<T: Hardware> Chip8<T> {
                 trace!("[{:04x}] ADD Vx, Vy", self.pc);
                 let (v, c) = self.v[x].overflowing_add(self.v[y]);
                 self.v[x] = v;
-                self.vf = c;
+                self.v[0xf] = c as u8;
             }
             (8, _, _, 5) => {
                 trace!("[{:04x}] SUB Vx, Vy", self.pc);
                 let (v, b) = self.v[x].overflowing_sub(self.v[y]);
                 self.v[x] = v;
-                self.vf = !b;
+                self.v[0xf] = !b as u8;
             }
             (8, _, _, 6) => {
                 trace!("[{:04x}] SHR Vx, Vy", self.pc);
-                self.vf = (self.v[x] & 1) == 1;
+                self.v[0xf] = self.v[x] & 1;
                 self.v[x] = self.v[x].wrapping_shr(1);
             }
             (8, _, _, 7) => {
                 trace!("[{:04x}] SUBN Vx, Vy", self.pc);
                 let (v, b) = self.v[y].overflowing_sub(self.v[x]);
                 self.v[x] = v;
-                self.vf = !b;
+                self.v[0xf] = !b as u8;
             }
             (8, _, _, 0xe) => {
                 trace!("[{:04x}] SHL Vx, Vy", self.pc);
-                self.vf = (self.v[x] & 0x80) == 0x80;
+                self.v[0xf] = (self.v[x] & 0x80) >> 7;
                 self.v[x] = self.v[x].wrapping_shl(1);
             }
             (9, _, _, 0) => {
@@ -306,6 +304,8 @@ impl<T: Hardware> Chip8<T> {
                 let basey = self.v[y] as u16;
                 let (w, h) = self.hw.vram_size();
 
+                self.v[0xf] = 0;
+
                 for y in 0..n {
                     let y = y as u16;
                     let b = self.mem[(self.i + y) as usize];
@@ -315,10 +315,11 @@ impl<T: Hardware> Chip8<T> {
                     for x in 0..8 {
                         let vramx = (x + basex) % (w as u16);
 
-                        let src = b & (1 << (7 - x)) > 0;
+                        let src = (b & 1 << (7 - x)) > 0;
                         let dst = self.hw.vram_get(vramx as u8, vramy as u8);
 
-                        self.vf |= src && dst;
+                        self.v[0xf] |= (src && dst) as u8;
+
                         self.hw.vram_set(vramx as u8, vramy as u8, src ^ dst);
                     }
                 }
@@ -362,19 +363,21 @@ impl<T: Hardware> Chip8<T> {
             (0xf, _, 3, 3) => {
                 trace!("[{:04x}] LD B, Vx", self.pc);
                 let bcd = self.v[x];
-                self.mem[self.i as usize] = bcd / 100;
+                self.mem[self.i as usize] = (bcd / 100) % 10;
                 self.mem[self.i as usize + 1] = (bcd / 10) % 10;
                 self.mem[self.i as usize + 2] = bcd % 10;
             }
             (0xf, _, 5, 5) => {
                 trace!("[{:04x}] LD [I], Vx", self.pc);
-                for i in 0..self.v.len() {
+                let x = x as usize;
+                for i in 0..(x + 1) {
                     self.mem[self.i as usize + i] = self.v[i];
                 }
             }
             (0xf, _, 6, 5) => {
                 trace!("[{:04x}] LD Vx, [I]", self.pc);
-                for i in 0..self.v.len() {
+                let x = x as usize;
+                for i in 0..(x + 1) {
                     self.v[i] = self.mem[self.i as usize + i];
                 }
             }
