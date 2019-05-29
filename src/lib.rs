@@ -18,8 +18,10 @@ pub trait Hardware: Sized {
     /// Play beep sound
     fn beep(&mut self);
 
-    /// Called in every step
-    fn sched(&mut self) {}
+    /// Called in every step; return `true` for shutdown
+    fn sched(&mut self) -> bool {
+        false
+    }
 }
 
 pub struct Chip8<T> {
@@ -33,6 +35,7 @@ pub struct Chip8<T> {
     mem: [u8; MEMS],
     stack: [u16; STACKS],
     time: Option<u64>,
+    running: bool,
     hw: T,
 }
 
@@ -75,6 +78,7 @@ impl<T: Hardware> Chip8<T> {
             mem: [0; MEMS],
             stack: [0; STACKS],
             time: None,
+            running: false,
             hw,
         }
     }
@@ -83,7 +87,7 @@ impl<T: Hardware> Chip8<T> {
         self.setup();
         self.load(rom);
 
-        loop {
+        while self.running {
             self.sched();
             self.eval();
             self.next();
@@ -94,6 +98,11 @@ impl<T: Hardware> Chip8<T> {
         self.pc = ENTRY;
         self.hw.vram_setsize(DISPS);
         self.mem[..CHARBUF.len()].copy_from_slice(&CHARBUF);
+        self.running = true;
+    }
+
+    fn shutdown(&mut self) {
+        self.running = false;
     }
 
     fn load(&mut self, rom: &[u8]) {
@@ -120,7 +129,9 @@ impl<T: Hardware> Chip8<T> {
     }
 
     fn sched(&mut self) {
-        self.hw.sched();
+        if self.hw.sched() {
+            self.shutdown();
+        }
 
         if let Some(t) = self.time {
             if self.hw.clock().wrapping_sub(t) > 1000_000_000 / 60 {
@@ -146,7 +157,7 @@ impl<T: Hardware> Chip8<T> {
     }
 
     fn waitkey(&mut self) -> u8 {
-        loop {
+        while self.running {
             self.sched();
 
             for i in 0..0xf {
@@ -155,6 +166,8 @@ impl<T: Hardware> Chip8<T> {
                 }
             }
         }
+
+        return b' ';
     }
 
     fn eval(&mut self) {
