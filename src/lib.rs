@@ -188,191 +188,192 @@ impl<T: Hardware> Chip8<T> {
             (inst >> 0) & 0xf,
         ) {
             (0, 0, 0xe, 0) => {
-                trace!("CLS");
+                trace!("[{:04x}] CLS", self.pc);
                 let (w, h) = self.hw.vram_size();
                 for (x, y) in (0..w).map(|w| (0..h).map(move |h| (w, h))).flatten() {
                     self.hw.vram_set(x, y, false);
                 }
             }
             (0, 0, 0xe, 0xe) => {
-                trace!("RET");
+                trace!("[{:04x}] RET", self.pc);
                 let addr = self.pop();
                 self.jump(addr);
             }
             (0, _, _, _) => {
-                trace!("SYS nnn");
+                trace!("[{:04x}] SYS nnn", self.pc);
                 unimplemented!()
             }
             (1, _, _, _) => {
-                trace!("JP nnn");
+                trace!("[{:04x}] JP nnn", self.pc);
                 self.jump(nnn.wrapping_sub(2));
             }
             (2, _, _, _) => {
-                trace!("CALL nnn");
+                trace!("[{:04x}] CALL nnn", self.pc);
                 self.push(self.pc);
                 self.jump(nnn.wrapping_sub(2));
             }
             (3, _, _, _) => {
-                trace!("SE Vx kk");
+                trace!("[{:04x}] SE Vx kk", self.pc);
                 if self.v[x] == kk {
                     self.next();
                 }
             }
             (4, _, _, _) => {
-                trace!("SNE Vx, kk");
+                trace!("[{:04x}] SNE Vx, kk", self.pc);
                 if self.v[x] != kk {
                     self.next();
                 }
             }
             (5, _, _, 0) => {
-                trace!("SE Vx, Vy");
+                trace!("[{:04x}] SE Vx, Vy", self.pc);
                 if self.v[x] == self.v[y] {
                     self.next();
                 }
             }
             (6, _, _, _) => {
-                trace!("LD Vx, kk");
+                trace!("[{:04x}] LD Vx, kk", self.pc);
                 self.v[x] = kk;
             }
             (7, _, _, _) => {
-                trace!("ADD Vx, kk");
+                trace!("[{:04x}] ADD Vx, kk", self.pc);
                 self.v[x] = self.v[x].wrapping_add(kk);
             }
             (8, _, _, 0) => {
-                trace!("LD Vx, Vy");
+                trace!("[{:04x}] LD Vx, Vy", self.pc);
                 self.v[x] = self.v[y];
             }
             (8, _, _, 1) => {
-                trace!("OR Vx, Vy");
+                trace!("[{:04x}] OR Vx, Vy", self.pc);
                 self.v[x] |= self.v[y];
             }
             (8, _, _, 2) => {
-                trace!("AND Vx, Vy");
+                trace!("[{:04x}] AND Vx, Vy", self.pc);
                 self.v[x] &= self.v[y];
             }
             (8, _, _, 3) => {
-                trace!("XOR Vx, Vy");
+                trace!("[{:04x}] XOR Vx, Vy", self.pc);
                 self.v[x] ^= self.v[y];
             }
             (8, _, _, 4) => {
-                trace!("ADD Vx, Vy");
+                trace!("[{:04x}] ADD Vx, Vy", self.pc);
                 let (v, c) = self.v[x].overflowing_add(self.v[y]);
                 self.v[x] = v;
                 self.vf = c;
             }
             (8, _, _, 5) => {
-                trace!("SUB Vx, Vy");
+                trace!("[{:04x}] SUB Vx, Vy", self.pc);
                 let (v, b) = self.v[x].overflowing_sub(self.v[y]);
                 self.v[x] = v;
                 self.vf = !b;
             }
             (8, _, _, 6) => {
-                trace!("SHR Vx, Vy");
+                trace!("[{:04x}] SHR Vx, Vy", self.pc);
                 self.vf = (self.v[x] & 1) == 1;
                 self.v[x] = self.v[x].wrapping_shr(1);
             }
             (8, _, _, 7) => {
-                trace!("SUBN Vx, Vy");
+                trace!("[{:04x}] SUBN Vx, Vy", self.pc);
                 let (v, b) = self.v[y].overflowing_sub(self.v[x]);
                 self.v[x] = v;
                 self.vf = !b;
             }
             (8, _, _, 0xe) => {
-                trace!("SHL Vx, Vy");
+                trace!("[{:04x}] SHL Vx, Vy", self.pc);
                 self.vf = (self.v[x] & 0x80) == 0x80;
                 self.v[x] = self.v[x].wrapping_shl(1);
             }
             (9, _, _, 0) => {
-                trace!("SNE Vx, Vy");
+                trace!("[{:04x}] SNE Vx, Vy", self.pc);
                 if self.v[x] != self.v[y] {
                     self.next();
                 }
             }
             (0xa, _, _, _) => {
-                trace!("LD I, nnn");
+                trace!("[{:04x}] LD I, nnn", self.pc);
                 self.i = nnn;
             }
             (0xb, _, _, _) => {
-                trace!("JP V0, nnn");
+                trace!("[{:04x}] JP V0, nnn", self.pc);
                 self.jump(nnn.wrapping_add(self.v[0].into()).wrapping_sub(2));
             }
             (0xc, _, _, _) => {
-                trace!("RND Vx, kk");
+                trace!("[{:04x}] RND Vx, kk", self.pc);
                 self.v[x] = self.hw.rand() & kk;
             }
             (0xd, _, _, _) => {
-                trace!("DRW Vx, Vy, n");
-                let basex = self.v[x];
-                let basey = self.v[y];
+                trace!("[{:04x}] DRW Vx, Vy, n", self.pc);
+                let basex = self.v[x] as u16;
+                let basey = self.v[y] as u16;
                 let (w, h) = self.hw.vram_size();
 
                 for y in 0..n {
-                    let b = self.mem[(self.i + y as u16) as usize];
+                    let y = y as u16;
+                    let b = self.mem[(self.i + y) as usize];
 
-                    let vramy = (y + basey) % h;
+                    let vramy = (y + basey) % (h as u16);
 
                     for x in 0..8 {
-                        let vramx = (x + basex) % w;
+                        let vramx = (x + basex) % (w as u16);
 
                         let src = b & (1 << (7 - x)) > 0;
-                        let dst = self.hw.vram_get(vramx, vramy);
+                        let dst = self.hw.vram_get(vramx as u8, vramy as u8);
 
                         self.vf |= src && dst;
-                        self.hw.vram_set(vramx, vramy, src ^ dst);
+                        self.hw.vram_set(vramx as u8, vramy as u8, src ^ dst);
                     }
                 }
             }
             (0xe, _, 9, 0xe) => {
-                trace!("SKP Vx");
+                trace!("[{:04x}] SKP Vx", self.pc);
                 if self.hw.key(self.v[x]) {
                     self.next();
                 }
             }
             (0xe, _, 0xa, 0x1) => {
-                trace!("SKNP Vx");
+                trace!("[{:04x}] SKNP Vx", self.pc);
                 if !self.hw.key(self.v[x]) {
                     self.next();
                 }
             }
             (0xf, _, 0, 7) => {
-                trace!("LD Vx, DT");
+                trace!("[{:04x}] LD Vx, DT", self.pc);
                 self.v[x] = self.dt;
             }
             (0xf, _, 0, 0xa) => {
-                trace!("LD Vx, K");
+                trace!("[{:04x}] LD Vx, K", self.pc);
                 self.v[x] = self.waitkey();
             }
             (0xf, _, 1, 5) => {
-                trace!("LD DT, Vx");
+                trace!("[{:04x}] LD DT, Vx", self.pc);
                 self.dt = self.v[x];
             }
             (0xf, _, 1, 8) => {
-                trace!("LD ST, Vx");
+                trace!("[{:04x}] LD ST, Vx", self.pc);
                 self.st = self.v[x];
             }
             (0xf, _, 1, 0xe) => {
-                trace!("ADD I, Vx");
+                trace!("[{:04x}] ADD I, Vx", self.pc);
                 self.i = self.i.wrapping_add(self.v[x].into());
             }
             (0xf, _, 2, 9) => {
-                trace!("LD F, Vx");
+                trace!("[{:04x}] LD F, Vx", self.pc);
                 self.i = (self.v[x] * 5).into();
             }
             (0xf, _, 3, 3) => {
-                trace!("LD B, Vx");
+                trace!("[{:04x}] LD B, Vx", self.pc);
                 let bcd = self.v[x];
                 self.mem[self.i as usize] = bcd / 100;
                 self.mem[self.i as usize + 1] = (bcd / 10) % 10;
                 self.mem[self.i as usize + 2] = bcd % 10;
             }
             (0xf, _, 5, 5) => {
-                trace!("LD [I], Vx");
+                trace!("[{:04x}] LD [I], Vx", self.pc);
                 for i in 0..self.v.len() {
                     self.mem[self.i as usize + i] = self.v[i];
                 }
             }
             (0xf, _, 6, 5) => {
-                trace!("LD Vx, [I]");
+                trace!("[{:04x}] LD Vx, [I]", self.pc);
                 for i in 0..self.v.len() {
                     self.v[i] = self.mem[self.i as usize + i];
                 }
