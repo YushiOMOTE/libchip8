@@ -7,10 +7,10 @@ pub trait Hardware: Sized {
 
     fn key(&mut self, key: u8) -> bool;
 
-    fn vram_set(&mut self, x: u8, y: u8, d: bool);
-    fn vram_get(&mut self, x: u8, y: u8) -> bool;
-    fn vram_setsize(&mut self, size: (u8, u8));
-    fn vram_size(&mut self) -> (u8, u8);
+    fn vram_set(&mut self, x: usize, y: usize, d: bool);
+    fn vram_get(&mut self, x: usize, y: usize) -> bool;
+    fn vram_setsize(&mut self, size: (usize, usize));
+    fn vram_size(&mut self) -> (usize, usize);
 
     /// Return the current clock value in nanoseconds
     fn clock(&mut self) -> u64;
@@ -41,7 +41,7 @@ pub struct Chip8<T> {
 const REGS: usize = 16;
 const MEMS: usize = 4096;
 const STACKS: usize = 16;
-const DISPS: (u8, u8) = (64, 32);
+const DISPS: (usize, usize) = (64, 32);
 const ENTRY: u16 = 512;
 const ROMBASE: usize = 512;
 
@@ -174,7 +174,7 @@ impl<T: Hardware> Chip8<T> {
         let inst = h << 8 | l;
 
         let nnn = inst & 0xfff;
-        let n = (inst & 0xf) as u8;
+        let n = (inst & 0xf) as usize;
         let x = ((inst >> 8) & 0xf) as usize;
         let y = ((inst >> 4) & 0xf) as usize;
         let kk = (inst & 0xff) as u8;
@@ -300,27 +300,26 @@ impl<T: Hardware> Chip8<T> {
             }
             (0xd, _, _, _) => {
                 trace!("[{:04x}] DRW Vx, Vy, n", self.pc);
-                let basex = self.v[x] as u16;
-                let basey = self.v[y] as u16;
+                let basex = self.v[x] as usize;
+                let basey = self.v[y] as usize;
                 let (w, h) = self.hw.vram_size();
 
                 self.v[0xf] = 0;
 
                 for y in 0..n {
-                    let y = y as u16;
-                    let b = self.mem[(self.i + y) as usize];
+                    let b = self.mem[self.i as usize + y];
 
-                    let vramy = (y + basey) % (h as u16);
+                    let vramy = (y + basey) % h;
 
                     for x in 0..8 {
-                        let vramx = (x + basex) % (w as u16);
+                        let vramx = (x + basex) % w;
 
                         let src = (b & 1 << (7 - x)) > 0;
-                        let dst = self.hw.vram_get(vramx as u8, vramy as u8);
+                        let dst = self.hw.vram_get(vramx, vramy);
 
                         self.v[0xf] |= (src && dst) as u8;
 
-                        self.hw.vram_set(vramx as u8, vramy as u8, src ^ dst);
+                        self.hw.vram_set(vramx, vramy, src ^ dst);
                     }
                 }
             }

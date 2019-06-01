@@ -20,7 +20,7 @@ struct Hardware {
     win: Option<Window>,
     rng: ThreadRng,
     inst: std::time::Instant,
-    vramsz: (u8, u8),
+    vramsz: (usize, usize),
     vram: Vec<bool>,
     opt: Opt,
 }
@@ -70,18 +70,18 @@ impl libchip8::Hardware for Hardware {
         }
     }
 
-    fn vram_set(&mut self, x: u8, y: u8, d: bool) {
-        self.vram[(y as usize * self.vramsz.0 as usize) + x as usize] = d;
+    fn vram_set(&mut self, x: usize, y: usize, d: bool) {
+        trace!("Set pixel ({},{})", x, y);
+        self.vram[(y * self.vramsz.0) + x] = d;
     }
 
-    fn vram_get(&mut self, x: u8, y: u8) -> bool {
-        self.vram[(y as usize * self.vramsz.0 as usize) + x as usize]
+    fn vram_get(&mut self, x: usize, y: usize) -> bool {
+        self.vram[(y * self.vramsz.0) + x]
     }
 
-    fn vram_setsize(&mut self, size: (u8, u8)) {
-        let (w, h) = (size.0 as usize, size.1 as usize);
+    fn vram_setsize(&mut self, size: (usize, usize)) {
         self.vramsz = size;
-        self.vram = vec![false; w * h];
+        self.vram = vec![false; size.0 * size.1];
 
         let win = match Window::new(
             "Chip8",
@@ -102,7 +102,7 @@ impl libchip8::Hardware for Hardware {
         self.win = Some(win);
     }
 
-    fn vram_size(&mut self) -> (u8, u8) {
+    fn vram_size(&mut self) -> (usize, usize) {
         self.vramsz
     }
 
