@@ -162,5 +162,5 @@ fn main() {
     }
 
     let chip8 = libchip8::Chip8::new(Hardware::new(opt));
-    chip8.run(include_bytes!("tetris.ch8"))
+    chip8.run(include_bytes!("roms/invaders.ch8"));
 }
