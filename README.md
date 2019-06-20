@@ -25,3 +25,5 @@ $ cargo run --example unix
 ```
 
 This example is to run the chip8 interpreter on unix. It uses `minifb` for its graphics.
+
+Also used for [bare-metal chip8 project](https://github.com/YushiOMOTE/chip8book).
