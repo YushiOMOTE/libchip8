@@ -1,29 +1,65 @@
+//! # libchip8
+//!
+//! An OS-independent chip8 interpreter library written in Rust (`no_std`).
+//!
+//! Once you implement OS-specific part, i.e. `Hardware` trait, you will get a complete chip8 interpreter for your environment.
+//!
+//! ```ignore
+//! struct Hardware;
+//!
+//! // 1. Implement `libchip8::Hardware`
+//! impl libchip8::Hardware for Hardware {
+//! // ...
+//! }
+//!
+//! // 2. Run `Chip8` giving a rom binary.
+//! let chip8 = libchip8::Chip8::new(Hardware);
+//! chip8.run(include_bytes!("roms/invaders.ch8"));
+//! ```
+//!
+
 #![no_std]
 
 use log::*;
 
+/// Represents environment-specific logic.
+///
+/// Library users need to implement this trait to run the interpreter.
+///
 pub trait Hardware: Sized {
+    /// Return a random value.
     fn rand(&mut self) -> u8;
 
+    /// Check if the key is pressed.
     fn key(&mut self, key: u8) -> bool;
 
+    /// Set the state of a pixel in the screen.
+    ///
+    /// `true` for white, and `false` for black.
     fn vram_set(&mut self, x: usize, y: usize, d: bool);
+
+    /// Get the current state of a pixel in the screen.
     fn vram_get(&mut self, x: usize, y: usize) -> bool;
+
+    /// Set the size of the screen.
     fn vram_setsize(&mut self, size: (usize, usize));
+
+    /// Get the size of the screen.
     fn vram_size(&mut self) -> (usize, usize);
 
-    /// Return the current clock value in nanoseconds
+    /// Return the current clock value in nanoseconds.
     fn clock(&mut self) -> u64;
 
-    /// Play beep sound
+    /// Play beep sound.
     fn beep(&mut self);
 
-    /// Called in every step; return `true` for shutdown
+    /// Called in every step; return `true` for shutdown.
     fn sched(&mut self) -> bool {
         false
     }
 }
 
+/// Interpreter instance
 pub struct Chip8<T> {
     v: [u8; REGS],
     i: u16,
@@ -65,6 +101,7 @@ static CHARBUF: [u8; 80] = [
 ];
 
 impl<T: Hardware> Chip8<T> {
+    /// Create an interpreter instance.
     pub fn new(hw: T) -> Self {
         Self {
             v: [0; REGS],
@@ -81,6 +118,9 @@ impl<T: Hardware> Chip8<T> {
         }
     }
 
+    /// Run the interpreter.
+    ///
+    /// The argument takes the raw ROM binary.
     pub fn run(mut self, rom: &[u8]) {
         self.setup();
         self.load(rom);
