@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Yushi Omote <yushi.omote@sbibits.com>"]
 edition = "2018"
 license = "MIT"
+repository = "https://github.com/YushiOMOTE/libchip8"
 description = "An OS-independent chip8 interpreter library written in Rust."
 
 [dependencies]
