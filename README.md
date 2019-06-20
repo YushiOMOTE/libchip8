@@ -1,7 +1,7 @@
 libchip8
 =========================
 
-An OS-independent chip8 interpreter library written in Rust.
+An OS-independent chip8 interpreter library written in Rust (`no_std`).
 
 Once you implement OS-specific part, i.e. `Hardware` trait, you will get a complete chip8 interpreter for your environment.
 
