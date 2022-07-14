@@ -26,4 +26,9 @@ $ cargo run --example unix
 
 This example is to run the chip8 interpreter on unix. It uses `minifb` for its graphics.
 
-Also used for [bare-metal chip8 project](https://github.com/YushiOMOTE/chip8book).
+### Projects
+
+The projects that use this library:
+
+* [Chip8 on PineTime Smart Watch](https://lupyuen.github.io/pinetime-rust-mynewt/articles/chip8)
+* [Bare-metal Chip8 on Macbook](https://github.com/YushiOMOTE/chip8book).
